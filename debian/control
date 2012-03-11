@@ -1,0 +1,16 @@
+Source: ldaplist
+Section: admin
+Priority: optional
+Maintainer: Greg Cockburn <greg@performancemagic.com>
+Build-Depends: debhelper (>= 7.0.50~)
+Standards-Version: 3.8.4
+Homepage: http://ldaplist.sourceforge.net/
+
+Package: ldaplist
+Architecture: all
+Depends: python (>=2.4), python-ldap
+Description: Uses ldap configuration to list ldap databases
+ ldaplist is similar to ldaplist on Solaris or ypmatch/ypcat.
+ It is written in python and utilities the ldap configuration
+ of the local system to connect to your ldap server and list
+ certain databases, like passwd, group, netgroup, etc.

@@ -1,0 +1,25 @@
+ldaplist (0.7) maverick; urgency=low
+
+  * Support for sssd.conf, nslcd.conf and RHEL6 
+
+ -- Greg Cockburn <greg@performancemagic.com>  Thu, 10 Feb 2011 07:13:59 +1100
+
+ldaplist (0.6) maverick; urgency=low
+
+  * moved conf file parsing to a function with extra checking.
+  * added tls support
+  * simplified function arguments
+
+ -- Greg Cockburn <greg@performancemagic.com>  Thu, 20 Jan 2011 06:59:21 +1100
+
+ldaplist (0.5) maverick; urgency=low
+
+  * many fixes 
+
+ -- Greg Cockburn <greg@performancemagic.com>  Mon, 17 Jan 2011 11:07:03 +1100
+
+ldaplist (0.4-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Greg Cockburn <greg@performancemagic.com>  Sat, 15 Jan 2011 17:29:27 +1100

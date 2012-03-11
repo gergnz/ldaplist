@@ -1,0 +1,279 @@
+#! /usr/bin/env python
+# 
+# My effort at replicating ldaplist from Solaris (TM Oracle).
+#
+# Copyright (c) Greg Cockburn <greg _@_ performancemagic.com> 2010-2011
+# 
+# This is licensed under GPLv3.  A copy of this licence is provided
+# with the source code.
+#
+import os, sys, ldap, optparse, ConfigParser
+
+DEBUG=0
+VERSION=0.7
+etc_ldap_confs=["/etc/ldap.conf", "/etc/pam_ldap.conf", "/etc/nss_ldap.conf", "/etc/nslcd.conf"]
+ldap_trace="/tmp/ldaplist." + str(os.getpid()) + ".trace"
+
+# print an error message and the default help(options parser object, error message)
+def die (parser, msg):
+    print msg
+    print
+    parser.print_help()
+    sys.exit(1)
+
+# print debugging messages(string)
+def dprint (msg):
+    if DEBUG:
+        print >>sys.stderr, msg
+
+# setup the ldap connection and return a ldap object(options parser object, ldap conf dict)
+def ldap_init(parser,ldap_conf):
+
+    binddn=ldap_conf["binddn"]
+    bindpw=ldap_conf["bindpw"]
+    ssl=ldap_conf["ssl"]
+    uri=ldap_conf["uri"]
+
+    dprint ("uri: " + uri)
+
+    if DEBUG:
+        try:
+            f = open(ldap_trace, "w")
+        except Exception, e:
+            die (parser, "Failed to open file: " + e)
+        l = ldap.initialize(uri,2,f)
+    else:
+        l = ldap.initialize(uri)
+    # setup tls
+    if ssl == "start_tls":
+        try:
+            l.start_tls_s()
+        except Exception, e:
+            die (parser, e[0]["desc"])
+
+    # simple bind #TODO: implement other authentication types besides simple (SASL)
+    try:
+        l.simple_bind_s(binddn,bindpw)
+    except Exception, e:
+        die (parser, e[0]["desc"])
+    return l
+
+# do the ldap query and print it(ldap object, options, arg, container, ldap base, options parser object)
+def ldap_list(ldapdir,options,args,ldap_ou,ldap_base,parser):
+    longlist=options.l
+    scope=options.d
+    show_filter=options.v
+    # default search options
+    allatt = 1
+    ldap_scope=ldap.SCOPE_ONELEVEL
+    search = "(objectClass=*)"
+
+    # build the search string
+    if (len(args) > 0):
+        search = "(&(objectClass=*)(|"
+        for key in args:
+            if (key.count("=") == 1):
+                search = search + "(" + key + ")"
+            else:
+                search = search + "(cn=" + key + ")"
+        search = search + "))"
+
+    dprint ("filter: " + search)
+
+    if longlist: # display a long listing (-l)
+        allatt = 0
+
+    if scope: #display attributes only (-d)
+        ldap_scope=ldap.SCOPE_BASE
+        allatt = 0
+        search = "(objectClass=*)"
+
+    # perform the search
+    try:
+        r = ldapdir.search_s(ldap_ou + "," + ldap_base,ldap_scope,search,None,allatt)
+    except Exception, e:
+        die (parser, e[0]["desc"])
+
+    dprint("no. results: " + str(len(r)))
+
+    # print the filter (-v)
+    if show_filter:
+        print "+++ database=" + ldap_ou.split("=")[1]
+        print "+++ filter=" + search
+
+    # print out the dn and all attributes if returned
+    for dn in r:
+        print "dn: " + dn[0]
+        for att in dn[1].keys():
+            for value in dn[1][ att ]:
+                print "\t" + att + ": " + value
+        print
+
+# print out the LDAP container and corresponding database
+def print_ldap_db(option, opt_str, value, parser, *args, **kwargs):
+    print "%12s   %-12s" %("Database", "Container")
+    print "------------------------------------"
+    for key in kwargs.keys():
+        print "%12s   %-12s" %(key, kwargs[key])
+    sys.exit(0)
+
+# open and parse the configfile returning a dictionary
+def parse_conffile(parser):
+    ldap_conf = {}
+    i_got_afile=False
+    host_uris = ""
+    uri_prefix = "ldap://"
+    uri_port = "389"
+    sssdconf = "/etc/sssd/sssd.conf"
+
+    # try and open each of the default config files in turn
+    for file in etc_ldap_confs:
+        if os.access(file,os.R_OK):
+            try:
+                ldap_conf_file = open(file).readlines()
+            except:
+                die (parser, "ldap conf file is readable but I can't open it")
+            i_got_afile=True
+            break
+    if not i_got_afile:
+        if os.access(sssdconf,os.R_OK):
+            sssdconfig = ConfigParser.ConfigParser()
+            sssdconfig.read(sssdconf)
+            if sssdconfig.has_section("sssd"):
+                if sssdconfig.has_option("sssd", "domains"):
+                    domains=sssdconfig.get("sssd", "domains").split(",")
+                    for domain in domains:
+                        if sssdconfig.has_section("domain/"+domain):
+                            if sssdconfig.has_option("domain/"+domain, "id_provider"):
+                                if sssdconfig.get("domain/"+domain, "id_provider") == "ldap":
+                                    # yay! do something
+                                    try:
+                                        ldap_conf["uri"] = sssdconfig.get("domain/"+domain, "ldap_uri")
+                                        ldap_conf["base"] = sssdconfig.get("domain/"+domain, "ldap_search_base")
+                                    except:
+                                        die(parser, "unable to obtain uri and base preferences from sssd configuration")
+                                    try:
+                                        ldap_conf["ssl"] = sssdconfig.get("domain/"+domain, "")
+                                    except:
+                                        ldap_conf["ssl"] = "off"
+                                    ldap_conf["bindpw"] = ""
+                                    ldap_conf["binddn"] = ""
+                                    if sssdconfig.has_option("domain/"+domain, "ldap_default_authtok"):
+                                        ldap_conf["bindpw"] = sssdconfig.get("domain/"+domain, "ldap_default_authtok")
+                                    if sssdconfig.has_option("domain/"+domain, "ldap_default_bind_dn"):
+                                        ldap_conf["binddn"] = sssdconfig.get("domain/"+domain, "ldap_default_bind_dn")
+                                    dprint("sssd ldap binddn:"+ldap_conf["binddn"])
+                                    dprint("sssd ldap authtok:"+ldap_conf["bindpw"])
+                                else:
+                                    continue
+                            else:
+                                continue
+                        else:
+                            die (parser, "cant find domain section in sssd configuration")
+                else:
+                    die (parser, "missing domains option in sssd section of sssd configuration")
+            else:
+                die (parser, "missing sssd section in sssd configuration")
+            return ldap_conf
+        else:
+            die (parser, "I don't know which configuration file to open, I give up!")
+
+    # parse the config file
+    for line in ldap_conf_file:
+        dprint ("rawline : " + line)
+        if not line.isspace():
+            line = line.strip()
+            if not line.startswith("#"): #drop comments
+                x = line.split(None,1)
+                ldap_conf[x[0]] = x[1]
+
+    # build an URI if we got a host configuration
+    if not "uri" in ldap_conf:
+        if not "host" in ldap_conf:
+            die(parser, "no uri or host specified in the configuration, no idea what server to talk to.")
+        if "ssl" in ldap_conf:
+            if ldap_conf["ssl"] == "on":
+                uri_prefix="ldaps://"
+                uri_port="636"
+        if "port" in ldap_conf:
+            uri_port = ldap_conf["port"]
+        for host in ldap_conf["host"].split():
+            host_uris = host_uris + uri_prefix + host + ":" + uri_port + "/ "
+        dprint(host_uris)
+        ldap_conf["uri"] = host_uris
+    # setup empty strings for binddb/pw so that simple anonymous bind will work.
+    if not "binddn" in ldap_conf:
+        ldap_conf["binddn"] = ""
+    if not "bindpw" in ldap_conf:
+        ldap_conf["bindpw"] = ""
+
+    # bad hack, TODO fix it
+    if not "ssl" in ldap_conf:
+        ldap_conf["ssl"] = "off"
+    return ldap_conf
+
+
+def main():
+    helpmsg = """
+    %prog [options] [<database> [<key>] ...]
+        <database> is the database to be searched in.  Standard system
+        databases are:
+                passwd, group, hosts, ethers, networks, netmasks,
+                rpc, bootparams, protocols, services, netgroup.
+        Non-standard system databases can be specified as follows:
+                by specific container: ou=<dbname>.
+        <key> is the key to search in the database.  For the standard
+        databases, the search type for the key is predefined
+       (currently only cn=<key> is used).  You can
+        override this by specifying <type>=<key>.
+"""
+    # built in container to database mapping
+    ldap_databases = {
+    "passwd" : "ou=People",
+    "group" : "ou=Groups",
+    "aliases" : "ou=Aliases",
+    "netgroup" : "ou=Netgroup"
+    }
+
+    # setup and parse all the command line options
+    parser = optparse.OptionParser(usage=helpmsg, version=str(VERSION) )
+    parser.add_option('-l', action="store_true", default=False, help="list all the attributes found in entry. By default, it lists only the DNs.")
+    parser.add_option('-d', action="store_true", default=False, help="list attributes for the database instead of its entries")
+    parser.add_option('-v', action="store_true", default=False, help="print out the LDAP search filter")
+    parser.add_option('-n', action="callback", callback=print_ldap_db, help="list the database mappings", callback_kwargs=ldap_databases)
+    options, args = parser.parse_args()
+
+    # check we have at least one more option so we can display something
+    if (len(args) < 1):
+        die (parser, "please supply a database to list")
+
+    # get the system configuration
+    ldap_conf = parse_conffile(parser)
+
+    # grab the first argument, if it has an "=" in it use it directly,
+    # else treat it as a database and check the configfile
+    # and then the hardcoded dictionary for the mapping
+    ldap_type = args.pop(0)
+    if  (ldap_type.count("=") == 1 ):
+        ldap_ou=ldap_type
+    else:
+        try: # see if we have a configured database in the ldapconf file
+            ldap_ou = ldap_conf["nss_base_" + ldap_type].split(",",1)[0]
+        except:
+            try: # now try hardcoded dictionary
+                ldap_ou=ldap_databases[ldap_type]
+            except:
+                die (parser, "map type not supported")
+    dprint ("ldap_ou: " + ldap_ou)
+
+    #setup the connection
+    ldapdir=ldap_init(parser,ldap_conf)
+
+    #search the directory and print the results
+    ldap_list(ldapdir,options,args,ldap_ou,ldap_conf["base"],parser)
+
+    #destroy the connection
+    ldapdir.unbind_ext_s()
+
+if __name__ == "__main__":
+    main()

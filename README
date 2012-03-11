@@ -1,0 +1,29 @@
+ldaplist is an implementation of ldaplist using python that is similar to ldaplist found on Solaris.
+
+It reads details from /etc/ldap.conf (and similar) to connect to the datastore.
+
+Ininitially developed for RHEL5.
+
+I have included support for nslcd.conf and sssd.conf on RHEL6.
+
+Seems to be working OK on Ubunut too.
+
+Only simple bind and anonymous authentication is currently supported.
+
+Patches supporting other authentication mechanisms or evedince that it worked in your environment is appreciated.
+
+
+INSTALLATION:
+
+To install simple run:
+    make install
+
+RPM:
+
+cp ldaplist-<version>.tar.gz ~/rpmbuild/SOURCES
+cd ~/rpmbuild/SOURCES/
+rpmbuild -tb ldaplist-<version>.tar.gz
+
+DEB:
+
+dpkg-buildpackage -rfakeroot
