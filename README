@@ -6,24 +6,26 @@ Ininitially developed for RHEL5.
 
 I have included support for nslcd.conf and sssd.conf on RHEL6.
 
-Seems to be working OK on Ubunut too.
+Seems to be working OK on Ubuntu too.
 
 Only simple bind and anonymous authentication is currently supported.
 
-Patches supporting other authentication mechanisms or evedince that it worked in your environment is appreciated.
+Patches supporting other authentication mechanisms or evidince that it worked in your environment is appreciated.
 
 
 INSTALLATION:
 
-To install simple run:
+To install simply run:
     make install
 
 RPM:
-
+make rpm
+OR:
 cp ldaplist-<version>.tar.gz ~/rpmbuild/SOURCES
 cd ~/rpmbuild/SOURCES/
 rpmbuild -tb ldaplist-<version>.tar.gz
 
 DEB:
-
+make deb
+OR:
 dpkg-buildpackage -rfakeroot
