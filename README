@@ -1,3 +1,5 @@
+Thanks to Martin Schuster <Martin.Schuster1@infineon.com> for the automount map patch
+
 ldaplist is an implementation of ldaplist using python that is similar to ldaplist found on Solaris.
 
 It reads details from /etc/ldap.conf (and similar) to connect to the datastore.
