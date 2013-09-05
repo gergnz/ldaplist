@@ -74,6 +74,8 @@ def ldap_list(ldapdir,options,args,ldap_ou,ldap_base,parser):
         for key in args:
             if (key.count("=") == 1):
                 search = search + "(" + key + ")"
+            elif ldap_ou.lower().startswith('automountmapname'):
+                search = search + "(automountKey=" + key + ")"
             else:
                 search = search + "(cn=" + key + ")"
         search = search + "))"
@@ -263,7 +265,10 @@ def main():
             try: # now try hardcoded dictionary
                 ldap_ou=ldap_databases[ldap_type]
             except:
-                die (parser, "map type not supported")
+                if ldap_type.startswith('auto_'):
+                    ldap_ou = 'automountMapname=%s' % ldap_type
+                else:
+                    die (parser, "map type not supported")
     dprint ("ldap_ou: " + ldap_ou)
 
     #setup the connection
