@@ -22,7 +22,7 @@ deb:
 	dpkg-buildpackage -rfakeroot
 rpm:
 	ln -s . ldaplist-$(VERSION)
-	tar --exclude ".svn" -zcf ~/rpmbuild/SOURCES/ldaplist-$(VERSION).tar.gz .
+	tar --exclude-vcs -zcf ~/rpmbuild/SOURCES/ldaplist-$(VERSION).tar.gz .
 	cd ~/rpmbuild/SOURCES/; rpmbuild -tb --sign --rmsource --clean ldaplist-$(VERSION).tar.gz
 	rm ldaplist-$(VERSION)
 version:
